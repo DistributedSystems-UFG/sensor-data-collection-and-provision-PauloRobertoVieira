@@ -1,21 +1,29 @@
 package com.example.samplesensorproviderapp;
 
+import static com.example.samplesensorproviderapp.MainActivity.brokerURI;
+
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.widget.TextView;
 
-public class LightSensorAccess implements SensorEventListener {
+import com.hivemq.client.mqtt.datatypes.MqttQos;
+import com.hivemq.client.mqtt.mqtt5.Mqtt5BlockingClient;
+import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
+
+import java.util.UUID;
+
+public class TempSensorAccess implements SensorEventListener {
     private SensorManager sensorManager;
-    private Sensor mLight;
+    private Sensor mTemp;
     private TextView sensor_field;
 
-    public LightSensorAccess(SensorManager sm, TextView tv){
+    public TempSensorAccess(SensorManager sm, TextView tv){
         sensorManager = sm;
         sensor_field = tv;
-        mLight = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
-        sensorManager.registerListener(this, mLight, SensorManager.SENSOR_DELAY_NORMAL);
+        mTemp = sensorManager.getDefaultSensor(Sensor.TYPE_AMBIENT_TEMPERATURE);
+        sensorManager.registerListener(this, mTemp, SensorManager.SENSOR_DELAY_NORMAL);
     }
     @Override
     public final void onAccuracyChanged(Sensor sensor, int accuracy) {
@@ -28,10 +36,26 @@ public class LightSensorAccess implements SensorEventListener {
         float lux = event.values[0];
         // Show luminosity value on the text field
         sensor_field.setText(String.valueOf(lux));
+        publishMessage(String.valueOf(lux));
     }
 
     @Override
     protected void finalize() {
         sensorManager.unregisterListener(this);
+    }
+
+    private void publishMessage(String value) {
+        Mqtt5BlockingClient client = Mqtt5Client.builder()
+                .identifier(UUID.randomUUID().toString())
+                .serverHost(brokerURI)
+                .buildBlocking();
+
+        client.connect();
+        client.publishWith()
+                .topic("temperatura")
+                .qos(MqttQos.AT_LEAST_ONCE)
+                .payload(value.getBytes())
+                .send();
+        client.disconnect();
     }
 }
